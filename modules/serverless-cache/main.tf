@@ -1,6 +1,14 @@
 resource "time_sleep" "cache_stabilization" {
   count = var.create && var.user_group_id != null ? 1 : 0
 
+  triggers = {
+    # Force re-creation on every apply so the sleep always fires when a
+    # user group is associated.  User-group member modifications (even
+    # tag-only changes) put the serverless cache into a transitional
+    # state that Terraform cannot detect via value references alone.
+    always_run = timestamp()
+  }
+
   create_duration  = var.cache_stabilization_duration
   destroy_duration = var.cache_stabilization_duration
 }

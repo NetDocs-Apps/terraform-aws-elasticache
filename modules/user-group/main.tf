@@ -111,6 +111,12 @@ resource "aws_elasticache_user_group_association" "this" {
 resource "time_sleep" "user_group_ready" {
   count = var.create && var.create_group ? 1 : 0
 
+  triggers = {
+    # Force re-creation on every apply so downstream consumers always
+    # wait for user-group stabilization after any member modification.
+    always_run = timestamp()
+  }
+
   create_duration  = var.stabilization_duration
   destroy_duration = var.stabilization_duration
 
