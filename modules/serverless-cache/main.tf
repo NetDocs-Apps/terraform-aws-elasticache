@@ -1,3 +1,10 @@
+resource "time_sleep" "cache_stabilization" {
+  count = var.create && var.user_group_id != null ? 1 : 0
+
+  create_duration  = var.cache_stabilization_duration
+  destroy_duration = var.cache_stabilization_duration
+}
+
 resource "aws_elasticache_serverless_cache" "this" {
   count = var.create ? 1 : 0
 
@@ -43,4 +50,6 @@ resource "aws_elasticache_serverless_cache" "this" {
   }
 
   tags = var.tags
+
+  depends_on = [time_sleep.cache_stabilization]
 }

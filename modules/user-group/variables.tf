@@ -59,3 +59,28 @@ variable "default_user_id" {
   type        = string
   default     = "default"
 }
+
+
+################################################################################
+# Timeouts & Stabilization
+################################################################################
+
+variable "user_timeouts" {
+  description = "Configurable timeouts for ElastiCache user create, update, and delete operations"
+  type = object({
+    create = optional(string, "10m")
+    update = optional(string, "10m")
+    delete = optional(string, "10m")
+  })
+  default = {
+    create = "10m"
+    update = "10m"
+    delete = "10m"
+  }
+}
+
+variable "stabilization_duration" {
+  description = "Duration to wait after all user group operations complete before signaling readiness"
+  type        = string
+  default     = "30s"
+}

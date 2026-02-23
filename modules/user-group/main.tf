@@ -42,6 +42,12 @@ resource "aws_elasticache_user" "default" {
   user_name            = "default"
 
   tags = local.tags
+
+  timeouts {
+    create = var.user_timeouts.create
+    update = var.user_timeouts.update
+    delete = var.user_timeouts.delete
+  }
 }
 
 ################################################################################
@@ -71,6 +77,14 @@ resource "aws_elasticache_user" "this" {
   user_name            = try(each.value.user_name, each.key)
 
   tags = merge(local.tags, try(each.value.tags, {}))
+
+  timeouts {
+    create = var.user_timeouts.create
+    update = var.user_timeouts.update
+    delete = var.user_timeouts.delete
+  }
+
+  depends_on = [aws_elasticache_user.default]
 }
 
 resource "aws_elasticache_user_group_association" "this" {
@@ -86,4 +100,24 @@ resource "aws_elasticache_user_group_association" "this" {
       delete = try(timeouts.value.delete, null)
     }
   }
+
+  depends_on = [aws_elasticache_user.this, aws_elasticache_user.default]
+}
+
+################################################################################
+# Stabilization
+################################################################################
+
+resource "time_sleep" "user_group_ready" {
+  count = var.create && var.create_group ? 1 : 0
+
+  create_duration  = var.stabilization_duration
+  destroy_duration = var.stabilization_duration
+
+  depends_on = [
+    aws_elasticache_user_group.this,
+    aws_elasticache_user.default,
+    aws_elasticache_user.this,
+    aws_elasticache_user_group_association.this,
+  ]
 }
