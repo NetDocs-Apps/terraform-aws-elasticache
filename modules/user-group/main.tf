@@ -29,7 +29,9 @@ resource "aws_elasticache_user" "default" {
 
     content {
       passwords = try(authentication_mode.value.passwords, null)
-      type      = authentication_mode.value.type
+      # AWS returns "no-password-required" but accepts "no-password" as input.
+      # Normalize to avoid perpetual drift.
+      type = authentication_mode.value.type == "no-password" ? "no-password-required" : authentication_mode.value.type
     }
   }
 
@@ -56,7 +58,9 @@ resource "aws_elasticache_user" "this" {
 
     content {
       passwords = try(authentication_mode.value.passwords, null)
-      type      = authentication_mode.value.type
+      # AWS returns "no-password-required" but accepts "no-password" as input.
+      # Normalize to avoid perpetual drift.
+      type = authentication_mode.value.type == "no-password" ? "no-password-required" : authentication_mode.value.type
     }
   }
 
