@@ -126,10 +126,18 @@ resource "terraform_data" "wait_for_user_group_ready" {
       POLL_INTERVAL=10
       ELAPSED=0
 
+      FALLBACK_WAIT=${var.stabilization_fallback_wait}
+
       # Verify AWS CLI is available
       if ! command -v aws >/dev/null 2>&1; then
-        echo "WARNING: AWS CLI not found, skipping user group stabilization check"
-        exit 0
+        if [ "$FALLBACK_WAIT" -gt 0 ]; then
+          echo "WARNING: AWS CLI not found, falling back to fixed wait of $${FALLBACK_WAIT}s"
+          sleep $FALLBACK_WAIT
+          exit 0
+        else
+          echo "WARNING: AWS CLI not found and fallback wait is 0, skipping user group stabilization check"
+          exit 0
+        fi
       fi
 
       # Check if user group exists — capture both stdout and stderr

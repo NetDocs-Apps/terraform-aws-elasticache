@@ -18,10 +18,18 @@ resource "terraform_data" "wait_for_cache_available" {
       POLL_INTERVAL=10
       ELAPSED=0
 
+      FALLBACK_WAIT=${var.cache_stabilization_fallback_wait}
+
       # Verify AWS CLI is available
       if ! command -v aws >/dev/null 2>&1; then
-        echo "WARNING: AWS CLI not found, skipping cache stabilization check"
-        exit 0
+        if [ "$FALLBACK_WAIT" -gt 0 ]; then
+          echo "WARNING: AWS CLI not found, falling back to fixed wait of $${FALLBACK_WAIT}s"
+          sleep $FALLBACK_WAIT
+          exit 0
+        else
+          echo "WARNING: AWS CLI not found and fallback wait is 0, skipping cache stabilization check"
+          exit 0
+        fi
       fi
 
       # Check if cache exists — capture both stdout and stderr

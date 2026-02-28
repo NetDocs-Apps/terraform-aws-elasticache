@@ -90,7 +90,13 @@ variable "tags" {
 
 
 variable "cache_stabilization_max_wait" {
-  description = "Maximum time in seconds to wait for the serverless cache to reach 'available' status before modifications. Requires AWS CLI. Set to 0 to disable."
+  description = "Maximum time in seconds to wait for the serverless cache to reach 'available' status before modifications. When AWS CLI is available, polls cache status actively. When AWS CLI is unavailable, falls back to a fixed sleep of `cache_stabilization_fallback_wait` seconds. Set to 0 to disable."
   type        = number
   default     = 600
+}
+
+variable "cache_stabilization_fallback_wait" {
+  description = "Fixed wait time in seconds when AWS CLI is not available. Used as a fallback for cache stabilization. Set to 0 to skip waiting when CLI is unavailable (not recommended)."
+  type        = number
+  default     = 300
 }

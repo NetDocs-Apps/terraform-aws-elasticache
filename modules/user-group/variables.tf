@@ -80,7 +80,13 @@ variable "user_timeouts" {
 }
 
 variable "stabilization_max_wait" {
-  description = "Maximum time in seconds to wait for the user group to reach 'active' status after modifications. Requires AWS CLI. Set to 0 to disable."
+  description = "Maximum time in seconds to wait for the user group to reach 'active' status after modifications. When AWS CLI is available, polls user group status actively. When AWS CLI is unavailable, falls back to a fixed sleep of `stabilization_fallback_wait` seconds. Set to 0 to disable."
   type        = number
   default     = 600
+}
+
+variable "stabilization_fallback_wait" {
+  description = "Fixed wait time in seconds when AWS CLI is not available. Used as a fallback for user group stabilization. Set to 0 to skip waiting when CLI is unavailable (not recommended)."
+  type        = number
+  default     = 300
 }
