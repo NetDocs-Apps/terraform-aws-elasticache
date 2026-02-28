@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 resource "terraform_data" "wait_for_cache_available" {
   count = var.create && var.user_group_id != null ? 1 : 0
 
@@ -8,17 +10,32 @@ resource "terraform_data" "wait_for_cache_available" {
   triggers_replace = timestamp()
 
   provisioner "local-exec" {
+    environment = {
+      AWS_DEFAULT_REGION = data.aws_region.current.id
+    }
     command = <<-EOT
       MAX_WAIT=${var.cache_stabilization_max_wait}
       POLL_INTERVAL=10
       ELAPSED=0
 
-      # On first apply the cache won't exist yet — skip the wait
-      if ! aws elasticache describe-serverless-caches \
-           --serverless-cache-name "${var.cache_name}" 2>/dev/null | grep -q "Status"; then
-        echo "Cache '${var.cache_name}' not found (first apply), skipping stabilization wait"
+      # Verify AWS CLI is available
+      if ! command -v aws >/dev/null 2>&1; then
+        echo "WARNING: AWS CLI not found, skipping cache stabilization check"
         exit 0
       fi
+
+      # Check if cache exists — capture both stdout and stderr
+      DESCRIBE_OUTPUT=$(aws elasticache describe-serverless-caches \
+        --serverless-cache-name "${var.cache_name}" 2>&1) || {
+        if echo "$DESCRIBE_OUTPUT" | grep -q "ServerlessCacheNotFoundFault"; then
+          echo "Cache '${var.cache_name}' not found (first apply), skipping stabilization wait"
+          exit 0
+        else
+          echo "WARNING: Failed to describe cache: $DESCRIBE_OUTPUT"
+          echo "Skipping cache stabilization check"
+          exit 0
+        fi
+      }
 
       while [ $ELAPSED -lt $MAX_WAIT ]; do
         STATUS=$(aws elasticache describe-serverless-caches \

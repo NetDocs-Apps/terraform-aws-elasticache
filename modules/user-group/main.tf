@@ -108,6 +108,8 @@ resource "aws_elasticache_user_group_association" "this" {
 # Stabilization
 ################################################################################
 
+data "aws_region" "current" {}
+
 resource "terraform_data" "wait_for_user_group_ready" {
   count = var.create && var.create_group ? 1 : 0
 
@@ -116,17 +118,32 @@ resource "terraform_data" "wait_for_user_group_ready" {
   triggers_replace = timestamp()
 
   provisioner "local-exec" {
+    environment = {
+      AWS_DEFAULT_REGION = data.aws_region.current.id
+    }
     command = <<-EOT
       MAX_WAIT=${var.stabilization_max_wait}
       POLL_INTERVAL=10
       ELAPSED=0
 
-      # On first apply the user group may not exist yet — skip the wait
-      if ! aws elasticache describe-user-groups \
-           --user-group-id "${var.user_group_id}" 2>/dev/null | grep -q "Status"; then
-        echo "User group '${var.user_group_id}' not found (first apply), skipping stabilization wait"
+      # Verify AWS CLI is available
+      if ! command -v aws >/dev/null 2>&1; then
+        echo "WARNING: AWS CLI not found, skipping user group stabilization check"
         exit 0
       fi
+
+      # Check if user group exists — capture both stdout and stderr
+      DESCRIBE_OUTPUT=$(aws elasticache describe-user-groups \
+        --user-group-id "${var.user_group_id}" 2>&1) || {
+        if echo "$DESCRIBE_OUTPUT" | grep -q "UserGroupNotFound"; then
+          echo "User group '${var.user_group_id}' not found (first apply), skipping stabilization wait"
+          exit 0
+        else
+          echo "WARNING: Failed to describe user group: $DESCRIBE_OUTPUT"
+          echo "Skipping user group stabilization check"
+          exit 0
+        fi
+      }
 
       while [ $ELAPSED -lt $MAX_WAIT ]; do
         STATUS=$(aws elasticache describe-user-groups \
