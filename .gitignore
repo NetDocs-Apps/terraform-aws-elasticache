@@ -37,3 +37,11 @@ __pycache__/
 # Local editors/macos files
 .DS_Store
 .idea
+
+# AI
+.amazonq/
+.augment/
+.claude/
+.github/prompts/
+.github/skills/
+openspec/

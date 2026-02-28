@@ -33,5 +33,5 @@ output "default_user_arn" {
 
 output "ready" {
   description = "Dependency hook that resolves after the user group and all members are stable. Use in depends_on blocks."
-  value       = try(time_sleep.user_group_ready[0].id, try(aws_elasticache_user_group.this[0].id, null))
+  value       = try(terraform_data.wait_for_user_group_ready[0].id, try(aws_elasticache_user_group.this[0].id, null))
 }

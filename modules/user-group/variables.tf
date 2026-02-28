@@ -79,8 +79,8 @@ variable "user_timeouts" {
   }
 }
 
-variable "stabilization_duration" {
-  description = "Duration to wait after all user group operations complete before signaling readiness"
-  type        = string
-  default     = "30s"
+variable "stabilization_max_wait" {
+  description = "Maximum time in seconds to wait for the user group to reach 'active' status after modifications. Requires AWS CLI. Set to 0 to disable."
+  type        = number
+  default     = 600
 }

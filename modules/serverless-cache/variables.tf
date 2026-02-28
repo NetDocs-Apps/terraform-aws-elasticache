@@ -89,8 +89,8 @@ variable "tags" {
 }
 
 
-variable "cache_stabilization_duration" {
-  description = "Duration to wait before serverless cache modifications when a user group is associated, to avoid InvalidServerlessCacheStateFault errors"
-  type        = string
-  default     = "60s"
+variable "cache_stabilization_max_wait" {
+  description = "Maximum time in seconds to wait for the serverless cache to reach 'available' status before modifications. Requires AWS CLI. Set to 0 to disable."
+  type        = number
+  default     = 600
 }

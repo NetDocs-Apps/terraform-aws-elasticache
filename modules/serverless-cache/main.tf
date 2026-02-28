@@ -1,16 +1,45 @@
-resource "time_sleep" "cache_stabilization" {
+resource "terraform_data" "wait_for_cache_available" {
   count = var.create && var.user_group_id != null ? 1 : 0
 
-  triggers = {
-    # Force re-creation on every apply so the sleep always fires when a
-    # user group is associated.  User-group member modifications (even
-    # tag-only changes) put the serverless cache into a transitional
-    # state that Terraform cannot detect via value references alone.
-    always_run = timestamp()
-  }
+  # Force re-creation on every apply so the waiter always runs when a
+  # user group is associated.  User-group member modifications (even
+  # tag-only changes) put the serverless cache into a transitional
+  # state that Terraform cannot detect via value references alone.
+  triggers_replace = timestamp()
 
-  create_duration  = var.cache_stabilization_duration
-  destroy_duration = var.cache_stabilization_duration
+  provisioner "local-exec" {
+    command = <<-EOT
+      MAX_WAIT=${var.cache_stabilization_max_wait}
+      POLL_INTERVAL=10
+      ELAPSED=0
+
+      # On first apply the cache won't exist yet — skip the wait
+      if ! aws elasticache describe-serverless-caches \
+           --serverless-cache-name "${var.cache_name}" 2>/dev/null | grep -q "Status"; then
+        echo "Cache '${var.cache_name}' not found (first apply), skipping stabilization wait"
+        exit 0
+      fi
+
+      while [ $ELAPSED -lt $MAX_WAIT ]; do
+        STATUS=$(aws elasticache describe-serverless-caches \
+          --serverless-cache-name "${var.cache_name}" \
+          --query 'ServerlessCaches[0].Status' \
+          --output text 2>/dev/null || echo "UNKNOWN")
+
+        if [ "$STATUS" = "available" ]; then
+          echo "Cache '${var.cache_name}' is available (waited $${ELAPSED}s)"
+          exit 0
+        fi
+
+        echo "Cache '${var.cache_name}' status: $STATUS ($${ELAPSED}s/$${MAX_WAIT}s), polling in $${POLL_INTERVAL}s..."
+        sleep $POLL_INTERVAL
+        ELAPSED=$((ELAPSED + POLL_INTERVAL))
+      done
+
+      echo "ERROR: Cache '${var.cache_name}' did not reach 'available' within $${MAX_WAIT}s (last status: $STATUS)"
+      exit 1
+    EOT
+  }
 }
 
 resource "aws_elasticache_serverless_cache" "this" {
@@ -59,5 +88,5 @@ resource "aws_elasticache_serverless_cache" "this" {
 
   tags = var.tags
 
-  depends_on = [time_sleep.cache_stabilization]
+  depends_on = [terraform_data.wait_for_cache_available]
 }

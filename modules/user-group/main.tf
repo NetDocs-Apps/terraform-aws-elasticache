@@ -108,17 +108,46 @@ resource "aws_elasticache_user_group_association" "this" {
 # Stabilization
 ################################################################################
 
-resource "time_sleep" "user_group_ready" {
+resource "terraform_data" "wait_for_user_group_ready" {
   count = var.create && var.create_group ? 1 : 0
 
-  triggers = {
-    # Force re-creation on every apply so downstream consumers always
-    # wait for user-group stabilization after any member modification.
-    always_run = timestamp()
-  }
+  # Force re-creation on every apply so downstream consumers always
+  # wait for user-group stabilization after any member modification.
+  triggers_replace = timestamp()
 
-  create_duration  = var.stabilization_duration
-  destroy_duration = var.stabilization_duration
+  provisioner "local-exec" {
+    command = <<-EOT
+      MAX_WAIT=${var.stabilization_max_wait}
+      POLL_INTERVAL=10
+      ELAPSED=0
+
+      # On first apply the user group may not exist yet — skip the wait
+      if ! aws elasticache describe-user-groups \
+           --user-group-id "${var.user_group_id}" 2>/dev/null | grep -q "Status"; then
+        echo "User group '${var.user_group_id}' not found (first apply), skipping stabilization wait"
+        exit 0
+      fi
+
+      while [ $ELAPSED -lt $MAX_WAIT ]; do
+        STATUS=$(aws elasticache describe-user-groups \
+          --user-group-id "${var.user_group_id}" \
+          --query 'UserGroups[0].Status' \
+          --output text 2>/dev/null || echo "UNKNOWN")
+
+        if [ "$STATUS" = "active" ]; then
+          echo "User group '${var.user_group_id}' is active (waited $${ELAPSED}s)"
+          exit 0
+        fi
+
+        echo "User group '${var.user_group_id}' status: $STATUS ($${ELAPSED}s/$${MAX_WAIT}s), polling in $${POLL_INTERVAL}s..."
+        sleep $POLL_INTERVAL
+        ELAPSED=$((ELAPSED + POLL_INTERVAL))
+      done
+
+      echo "ERROR: User group '${var.user_group_id}' did not reach 'active' within $${MAX_WAIT}s (last status: $STATUS)"
+      exit 1
+    EOT
+  }
 
   depends_on = [
     aws_elasticache_user_group.this,
